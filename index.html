@@ -1,0 +1,926 @@
+<!doctype html>
+<html lang="so" class="h-full">
+ <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SOMKASH Investment Tracker</title>
+  <script src="/_sdk/element_sdk.js"></script>
+  <script src="/_sdk/data_sdk.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&amp;family=Poppins:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      box-sizing: border-box;
+    }
+    
+    * {
+      box-sizing: border-box;
+    }
+    
+    .font-playfair {
+      font-family: 'Playfair Display', serif;
+    }
+    
+    .font-poppins {
+      font-family: 'Poppins', sans-serif;
+    }
+  </style>
+  <style>@view-transition { navigation: auto; }</style>
+ </head>
+ <body class="h-full font-poppins">
+  <div id="app" class="w-full h-full overflow-auto"></div>
+  <script>
+    const defaultConfig = {
+      background_color: "#0B1F33",
+      card_color: "#0E2A47",
+      accent_color: "#F2C94C",
+      profit_color: "#27AE60",
+      loss_color: "#EB5757",
+      font_family: "Poppins",
+      font_size: 16,
+      main_title: "SOMKASH - Investment & Trading Tracker",
+      subtitle: "6 Bilood Maaliyad & Trading",
+      investment_title: "INVESTMENT TRACKER",
+      trading_title: "WEEKLY TRADING",
+      progress_title: "6-BILOOD PROGRESS"
+    };
+
+    let investments = [];
+    let trades = [];
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
+    
+    // Coin to CoinGecko ID mapping
+    const coinGeckoIds = {
+      'SEI': 'sei-network',
+      'AKT': 'akash-network',
+      'BTC': 'bitcoin',
+      'ETH': 'ethereum',
+      'SOL': 'solana',
+      'BNB': 'binancecoin',
+      'ADA': 'cardano',
+      'DOT': 'polkadot',
+      'MATIC': 'matic-network',
+      'AVAX': 'avalanche-2',
+      'LINK': 'chainlink',
+      'UNI': 'uniswap',
+      'ATOM': 'cosmos',
+      'XRP': 'ripple',
+      'DOGE': 'dogecoin',
+      'SHIB': 'shiba-inu',
+      'TRX': 'tron',
+      'LTC': 'litecoin',
+      'BCH': 'bitcoin-cash',
+      'NEAR': 'near',
+      'FTM': 'fantom',
+      'APT': 'aptos',
+      'SUI': 'sui',
+      'ARB': 'arbitrum',
+      'OP': 'optimism'
+    };
+    
+    // Fetch live price from CoinGecko
+    async function fetchLivePrice(coinSymbol) {
+      const geckoId = coinGeckoIds[coinSymbol];
+      if (!geckoId) return null;
+      
+      try {
+        const response = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${geckoId}&vs_currencies=usd`);
+        const data = await response.json();
+        return data[geckoId]?.usd || null;
+      } catch (error) {
+        console.error('Error fetching price:', error);
+        return null;
+      }
+    }
+
+    const dataHandler = {
+      onDataChanged(data) {
+        investments = data.filter(item => item.type === 'investment');
+        trades = data.filter(item => item.type === 'trade');
+        renderApp();
+      }
+    };
+
+    async function init() {
+      const result = await window.dataSdk.init(dataHandler);
+      if (!result.isOk) {
+        console.error("Failed to initialize SDK");
+      }
+      
+      if (window.elementSdk) {
+        window.elementSdk.init({
+          defaultConfig,
+          onConfigChange: async (config) => {
+            renderApp();
+          },
+          mapToCapabilities: (config) => ({
+            recolorables: [
+              {
+                get: () => config.background_color || defaultConfig.background_color,
+                set: (value) => {
+                  config.background_color = value;
+                  window.elementSdk.setConfig({ background_color: value });
+                }
+              },
+              {
+                get: () => config.card_color || defaultConfig.card_color,
+                set: (value) => {
+                  config.card_color = value;
+                  window.elementSdk.setConfig({ card_color: value });
+                }
+              },
+              {
+                get: () => config.accent_color || defaultConfig.accent_color,
+                set: (value) => {
+                  config.accent_color = value;
+                  window.elementSdk.setConfig({ accent_color: value });
+                }
+              },
+              {
+                get: () => config.profit_color || defaultConfig.profit_color,
+                set: (value) => {
+                  config.profit_color = value;
+                  window.elementSdk.setConfig({ profit_color: value });
+                }
+              },
+              {
+                get: () => config.loss_color || defaultConfig.loss_color,
+                set: (value) => {
+                  config.loss_color = value;
+                  window.elementSdk.setConfig({ loss_color: value });
+                }
+              }
+            ],
+            borderables: [],
+            fontEditable: {
+              get: () => config.font_family || defaultConfig.font_family,
+              set: (value) => {
+                config.font_family = value;
+                window.elementSdk.setConfig({ font_family: value });
+              }
+            },
+            fontSizeable: {
+              get: () => config.font_size || defaultConfig.font_size,
+              set: (value) => {
+                config.font_size = value;
+                window.elementSdk.setConfig({ font_size: value });
+              }
+            }
+          }),
+          mapToEditPanelValues: (config) => new Map([
+            ["main_title", config.main_title || defaultConfig.main_title],
+            ["subtitle", config.subtitle || defaultConfig.subtitle],
+            ["investment_title", config.investment_title || defaultConfig.investment_title],
+            ["trading_title", config.trading_title || defaultConfig.trading_title],
+            ["progress_title", config.progress_title || defaultConfig.progress_title]
+          ])
+        });
+      }
+      
+      renderApp();
+    }
+
+    function renderApp() {
+      const config = window.elementSdk?.config || defaultConfig;
+      const customFont = config.font_family || defaultConfig.font_family;
+      const baseSize = config.font_size || defaultConfig.font_size;
+      const bgColor = config.background_color || defaultConfig.background_color;
+      const cardColor = config.card_color || defaultConfig.card_color;
+      const accentColor = config.accent_color || defaultConfig.accent_color;
+      const profitColor = config.profit_color || defaultConfig.profit_color;
+      const lossColor = config.loss_color || defaultConfig.loss_color;
+      
+      const app = document.getElementById('app');
+      app.style.backgroundColor = bgColor;
+      app.style.fontFamily = `${customFont}, Poppins, sans-serif`;
+      
+      const totalInvestment = investments.reduce((sum, inv) => sum + inv.amount, 0);
+      const totalPL = trades.reduce((sum, trade) => sum + trade.profit_loss, 0);
+      const tradingBalance = 100 + totalPL;
+      const combinedTotal = totalInvestment + tradingBalance;
+      
+      app.innerHTML = `
+        <div class="w-full min-h-full p-4 md:p-8">
+          <div class="max-w-7xl mx-auto">
+            <!-- Header -->
+            <header class="text-center mb-8">
+              <h1 class="font-playfair font-bold mb-2" style="font-size: ${baseSize * 2}px; color: ${accentColor};">
+                💰💎 ${config.main_title || defaultConfig.main_title}
+              </h1>
+              <p class="text-white" style="font-size: ${baseSize * 1.2}px;">
+                📊 ${config.subtitle || defaultConfig.subtitle}
+              </p>
+            </header>
+
+            <!-- Quick Stats -->
+            <section class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+              <div class="p-6 rounded-lg" style="background-color: ${cardColor};">
+                <div class="text-gray-400" style="font-size: ${baseSize * 0.85}px;">Total Investment</div>
+                <div class="font-bold" style="font-size: ${baseSize * 1.5}px; color: ${accentColor};">$${totalInvestment}</div>
+              </div>
+              <div class="p-6 rounded-lg" style="background-color: ${cardColor};">
+                <div class="text-gray-400" style="font-size: ${baseSize * 0.85}px;">Trading Balance</div>
+                <div class="font-bold" style="font-size: ${baseSize * 1.5}px; color: ${totalPL >= 0 ? profitColor : lossColor};">$${tradingBalance.toFixed(2)}</div>
+              </div>
+              <div class="p-6 rounded-lg" style="background-color: ${cardColor};">
+                <div class="text-gray-400" style="font-size: ${baseSize * 0.85}px;">Combined Total</div>
+                <div class="font-bold" style="font-size: ${baseSize * 1.5}px; color: ${accentColor};">$${combinedTotal.toFixed(2)}</div>
+              </div>
+            </section>
+
+            <!-- Investment Section -->
+            <main>
+              <section class="mb-8 p-6 rounded-lg" style="background-color: ${cardColor};">
+                <h2 class="font-bold mb-4" style="font-size: ${baseSize * 1.5}px; color: ${accentColor};">
+                  1️⃣ ${config.investment_title || defaultConfig.investment_title}
+                </h2>
+                <div class="mb-4">
+                  <button id="addInvestmentBtn" class="px-6 py-2 rounded-lg font-semibold transition-all" style="background-color: ${accentColor}; color: ${bgColor}; font-size: ${baseSize}px;">
+                    + Kudar Investment
+                  </button>
+                </div>
+                <div id="investmentForm" class="hidden mb-4 p-4 rounded-lg" style="background-color: ${bgColor};">
+                  <form id="invForm">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                      <div>
+                        <label for="invMonth" class="block text-white mb-2" style="font-size: ${baseSize * 0.85}px;">Bil</label>
+                        <select id="invMonth" class="w-full p-2 rounded" style="background-color: ${cardColor}; color: white; font-size: ${baseSize}px;">
+                          ${months.map(m => `<option value="${m}">${m}</option>`).join('')}
+                        </select>
+                      </div>
+                      <div>
+                        <label for="invCoin" class="block text-white mb-2" style="font-size: ${baseSize * 0.85}px;">Coin</label>
+                        <select id="invCoin" class="w-full p-2 rounded" style="background-color: ${cardColor}; color: white; font-size: ${baseSize}px;">
+                          <option value="SEI">SEI</option>
+                          <option value="AKT">AKT</option>
+                          <option value="BTC">BTC (Bitcoin)</option>
+                          <option value="ETH">ETH (Ethereum)</option>
+                          <option value="SOL">SOL (Solana)</option>
+                          <option value="BNB">BNB (Binance)</option>
+                          <option value="ADA">ADA (Cardano)</option>
+                          <option value="DOT">DOT (Polkadot)</option>
+                          <option value="MATIC">MATIC (Polygon)</option>
+                          <option value="AVAX">AVAX (Avalanche)</option>
+                          <option value="LINK">LINK (Chainlink)</option>
+                          <option value="UNI">UNI (Uniswap)</option>
+                          <option value="ATOM">ATOM (Cosmos)</option>
+                          <option value="XRP">XRP (Ripple)</option>
+                          <option value="DOGE">DOGE (Dogecoin)</option>
+                          <option value="SHIB">SHIB (Shiba Inu)</option>
+                          <option value="TRX">TRX (Tron)</option>
+                          <option value="LTC">LTC (Litecoin)</option>
+                          <option value="BCH">BCH (Bitcoin Cash)</option>
+                          <option value="NEAR">NEAR (Near Protocol)</option>
+                          <option value="FTM">FTM (Fantom)</option>
+                          <option value="APT">APT (Aptos)</option>
+                          <option value="SUI">SUI</option>
+                          <option value="ARB">ARB (Arbitrum)</option>
+                          <option value="OP">OP (Optimism)</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label for="invAmount" class="block text-white mb-2" style="font-size: ${baseSize * 0.85}px;">Lacag ($)</label>
+                        <input type="number" id="invAmount" class="w-full p-2 rounded" style="background-color: ${cardColor}; color: white; font-size: ${baseSize}px;" />
+                      </div>
+                      <div>
+                        <label for="invPrice" class="block text-white mb-2" style="font-size: ${baseSize * 0.85}px;">Qiimo Coin</label>
+                        <input type="number" id="invPrice" step="0.0001" class="w-full p-2 rounded" style="background-color: ${cardColor}; color: white; font-size: ${baseSize}px;" />
+                      </div>
+                    </div>
+                    <div class="flex gap-2">
+                      <button type="submit" id="saveInvestmentBtn" class="px-6 py-2 rounded-lg font-semibold" style="background-color: ${profitColor}; color: white; font-size: ${baseSize}px;">
+                        Kaydi
+                      </button>
+                      <button type="button" id="cancelInvestmentBtn" class="px-6 py-2 rounded-lg font-semibold" style="background-color: ${lossColor}; color: white; font-size: ${baseSize}px;">
+                        Ka Noqo
+                      </button>
+                    </div>
+                  </form>
+                </div>
+                <div class="overflow-x-auto">
+                  <table class="w-full">
+                    <thead>
+                      <tr class="border-b" style="border-color: ${bgColor};">
+                        <th class="text-left p-3 text-gray-400" style="font-size: ${baseSize * 0.85}px;">Bil</th>
+                        <th class="text-left p-3 text-gray-400" style="font-size: ${baseSize * 0.85}px;">Coin</th>
+                        <th class="text-left p-3 text-gray-400" style="font-size: ${baseSize * 0.85}px;">Lacag</th>
+                        <th class="text-left p-3 text-gray-400" style="font-size: ${baseSize * 0.85}px;">Qiimo</th>
+                        <th class="text-left p-3 text-gray-400" style="font-size: ${baseSize * 0.85}px;">Quantity</th>
+                        <th class="text-left p-3 text-gray-400" style="font-size: ${baseSize * 0.85}px;">Value</th>
+                        <th class="text-left p-3 text-gray-400" style="font-size: ${baseSize * 0.85}px;">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody id="investmentList">
+                      ${investments.length === 0 ? 
+                        `<tr><td colspan="7" class="text-center p-4 text-gray-400" style="font-size: ${baseSize}px;">Wali investment ma jiro. Kudar mid cusub!</td></tr>` :
+                        investments.map(inv => {
+                          const quantity = inv.price > 0 ? (inv.amount / inv.price).toFixed(2) : 0;
+                          const value = quantity * inv.price;
+                          return `
+                            <tr class="border-b" style="border-color: ${bgColor};" data-id="${inv.id}">
+                              <td class="p-3 text-white" style="font-size: ${baseSize}px;">${inv.month}</td>
+                              <td class="p-3 text-white font-semibold" style="font-size: ${baseSize}px;">${inv.coin}</td>
+                              <td class="p-3 text-white" style="font-size: ${baseSize}px;">$${inv.amount}</td>
+                              <td class="p-3 text-white" style="font-size: ${baseSize}px;">$${inv.price.toFixed(4)}</td>
+                              <td class="p-3 text-white" style="font-size: ${baseSize}px;">${quantity}</td>
+                              <td class="p-3 font-semibold" style="font-size: ${baseSize}px; color: ${accentColor};">$${value.toFixed(2)}</td>
+                              <td class="p-3">
+                                <button class="delete-inv px-3 py-1 rounded text-white" style="background-color: ${lossColor}; font-size: ${baseSize * 0.85}px;">Tirtir</button>
+                              </td>
+                            </tr>
+                          `;
+                        }).join('')
+                      }
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+
+              <!-- Trading Section -->
+              <section class="mb-8 p-6 rounded-lg" style="background-color: ${cardColor};">
+                <h2 class="font-bold mb-4" style="font-size: ${baseSize * 1.5}px; color: ${accentColor};">
+                  2️⃣ ${config.trading_title || defaultConfig.trading_title}
+                </h2>
+                <div class="mb-4">
+                  <button id="addTradeBtn" class="px-6 py-2 rounded-lg font-semibold transition-all" style="background-color: ${accentColor}; color: ${bgColor}; font-size: ${baseSize}px;">
+                    + Kudar Trade
+                  </button>
+                </div>
+                <div id="tradeForm" class="hidden mb-4 p-4 rounded-lg" style="background-color: ${bgColor};">
+                  <form id="trForm">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                      <div>
+                        <label for="tradeDate" class="block text-white mb-2" style="font-size: ${baseSize * 0.85}px;">Taariikhda</label>
+                        <input type="date" id="tradeDate" class="w-full p-2 rounded" style="background-color: ${cardColor}; color: white; font-size: ${baseSize}px;" />
+                      </div>
+                      <div>
+                        <label for="tradePair" class="block text-white mb-2" style="font-size: ${baseSize * 0.85}px;">Pair</label>
+                        <select id="tradePair" class="w-full p-2 rounded" style="background-color: ${cardColor}; color: white; font-size: ${baseSize}px;">
+                          <option value="SEI/USDT">SEI/USDT</option>
+                          <option value="AKT/USDT">AKT/USDT</option>
+                          <option value="BTC/USDT">BTC/USDT</option>
+                          <option value="ETH/USDT">ETH/USDT</option>
+                          <option value="SOL/USDT">SOL/USDT</option>
+                          <option value="BNB/USDT">BNB/USDT</option>
+                          <option value="ADA/USDT">ADA/USDT</option>
+                          <option value="DOT/USDT">DOT/USDT</option>
+                          <option value="MATIC/USDT">MATIC/USDT</option>
+                          <option value="AVAX/USDT">AVAX/USDT</option>
+                          <option value="LINK/USDT">LINK/USDT</option>
+                          <option value="UNI/USDT">UNI/USDT</option>
+                          <option value="ATOM/USDT">ATOM/USDT</option>
+                          <option value="XRP/USDT">XRP/USDT</option>
+                          <option value="DOGE/USDT">DOGE/USDT</option>
+                          <option value="SHIB/USDT">SHIB/USDT</option>
+                          <option value="TRX/USDT">TRX/USDT</option>
+                          <option value="LTC/USDT">LTC/USDT</option>
+                          <option value="BCH/USDT">BCH/USDT</option>
+                          <option value="NEAR/USDT">NEAR/USDT</option>
+                          <option value="FTM/USDT">FTM/USDT</option>
+                          <option value="APT/USDT">APT/USDT</option>
+                          <option value="SUI/USDT">SUI/USDT</option>
+                          <option value="ARB/USDT">ARB/USDT</option>
+                          <option value="OP/USDT">OP/USDT</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label for="tradeEntry" class="block text-white mb-2" style="font-size: ${baseSize * 0.85}px;">Entry</label>
+                        <input type="number" id="tradeEntry" step="0.0001" class="w-full p-2 rounded" style="background-color: ${cardColor}; color: white; font-size: ${baseSize}px;" />
+                      </div>
+                      <div>
+                        <label for="tradeSL" class="block text-white mb-2" style="font-size: ${baseSize * 0.85}px;">Stop Loss</label>
+                        <input type="number" id="tradeSL" step="0.0001" class="w-full p-2 rounded" style="background-color: ${cardColor}; color: white; font-size: ${baseSize}px;" />
+                      </div>
+                      <div>
+                        <label for="tradeTP" class="block text-white mb-2" style="font-size: ${baseSize * 0.85}px;">Take Profit</label>
+                        <input type="number" id="tradeTP" step="0.0001" class="w-full p-2 rounded" style="background-color: ${cardColor}; color: white; font-size: ${baseSize}px;" />
+                      </div>
+                      <div>
+                        <label for="tradeAmount" class="block text-white mb-2" style="font-size: ${baseSize * 0.85}px;">Trade Amount ($)</label>
+                        <input type="number" id="tradeAmount" step="0.01" class="w-full p-2 rounded" style="background-color: ${cardColor}; color: white; font-size: ${baseSize}px;" placeholder="Lacagta aad galayso" />
+                      </div>
+                      <div>
+                        <label for="tradeRiskPercent" class="block text-white mb-2" style="font-size: ${baseSize * 0.85}px;">Risk % (1-5%)</label>
+                        <select id="tradeRiskPercent" class="w-full p-2 rounded" style="background-color: ${cardColor}; color: white; font-size: ${baseSize}px;">
+                          <option value="1">1%</option>
+                          <option value="2" selected>2%</option>
+                          <option value="3">3%</option>
+                          <option value="4">4%</option>
+                          <option value="5">5%</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label for="tradeRisk" class="block text-white mb-2" style="font-size: ${baseSize * 0.85}px;">Risk Amount - Auto</label>
+                        <input type="number" id="tradeRisk" step="0.01" readonly class="w-full p-2 rounded" style="background-color: ${cardColor}; color: white; font-size: ${baseSize}px; opacity: 0.7;" />
+                      </div>
+                      <div>
+                        <label for="tradeResult" class="block text-white mb-2" style="font-size: ${baseSize * 0.85}px;">Result</label>
+                        <select id="tradeResult" class="w-full p-2 rounded" style="background-color: ${cardColor}; color: white; font-size: ${baseSize}px;">
+                          <option value="">Open</option>
+                          <option value="Win">Win</option>
+                          <option value="Loss">Loss</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label for="tradePL" class="block text-white mb-2" style="font-size: ${baseSize * 0.85}px;">P/L ($) - Auto</label>
+                        <input type="number" id="tradePL" step="0.01" readonly class="w-full p-2 rounded" style="background-color: ${cardColor}; color: white; font-size: ${baseSize}px; opacity: 0.7;" />
+                      </div>
+                      <div>
+                        <label for="tradeNotes" class="block text-white mb-2" style="font-size: ${baseSize * 0.85}px;">Notes</label>
+                        <input type="text" id="tradeNotes" class="w-full p-2 rounded" style="background-color: ${cardColor}; color: white; font-size: ${baseSize}px;" />
+                      </div>
+                    </div>
+                    <div class="flex gap-2">
+                      <button type="submit" id="saveTradeBtn" class="px-6 py-2 rounded-lg font-semibold" style="background-color: ${profitColor}; color: white; font-size: ${baseSize}px;">
+                        Kaydi
+                      </button>
+                      <button type="button" id="cancelTradeBtn" class="px-6 py-2 rounded-lg font-semibold" style="background-color: ${lossColor}; color: white; font-size: ${baseSize}px;">
+                        Ka Noqo
+                      </button>
+                    </div>
+                  </form>
+                </div>
+                <div class="overflow-x-auto">
+                  <table class="w-full">
+                    <thead>
+                      <tr class="border-b" style="border-color: ${bgColor};">
+                        <th class="text-left p-3 text-gray-400" style="font-size: ${baseSize * 0.85}px;">Date</th>
+                        <th class="text-left p-3 text-gray-400" style="font-size: ${baseSize * 0.85}px;">Pair</th>
+                        <th class="text-left p-3 text-gray-400" style="font-size: ${baseSize * 0.85}px;">Entry</th>
+                        <th class="text-left p-3 text-gray-400" style="font-size: ${baseSize * 0.85}px;">SL</th>
+                        <th class="text-left p-3 text-gray-400" style="font-size: ${baseSize * 0.85}px;">TP</th>
+                        <th class="text-left p-3 text-gray-400" style="font-size: ${baseSize * 0.85}px;">Result</th>
+                        <th class="text-left p-3 text-gray-400" style="font-size: ${baseSize * 0.85}px;">P/L</th>
+                        <th class="text-left p-3 text-gray-400" style="font-size: ${baseSize * 0.85}px;">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody id="tradeList">
+                      ${trades.length === 0 ? 
+                        `<tr><td colspan="8" class="text-center p-4 text-gray-400" style="font-size: ${baseSize}px;">Wali trade ma jiro. Kudar mid cusub!</td></tr>` :
+                        trades.map(trade => `
+                          <tr class="border-b trade-row" style="border-color: ${bgColor};" data-id="${trade.id}">
+                            <td class="p-3 text-white" style="font-size: ${baseSize * 0.85}px;">${trade.date}</td>
+                            <td class="p-3 text-white font-semibold" style="font-size: ${baseSize * 0.85}px;">${trade.coin}</td>
+                            <td class="p-3 text-white" style="font-size: ${baseSize * 0.85}px;">$${trade.entry.toFixed(4)}</td>
+                            <td class="p-3 text-white" style="font-size: ${baseSize * 0.85}px;">$${trade.stop_loss.toFixed(4)}</td>
+                            <td class="p-3 text-white" style="font-size: ${baseSize * 0.85}px;">$${trade.take_profit.toFixed(4)}</td>
+                            <td class="p-3" style="font-size: ${baseSize * 0.85}px;">
+                              <span class="px-2 py-1 rounded font-semibold" style="background-color: ${trade.result === 'Win' ? profitColor : trade.result === 'Loss' ? lossColor : '#6B7280'}; color: white;">
+                                ${trade.result || 'Open'}
+                              </span>
+                            </td>
+                            <td class="p-3 font-bold" style="font-size: ${baseSize}px; color: ${trade.profit_loss >= 0 ? profitColor : lossColor};">
+                              ${trade.profit_loss >= 0 ? '+' : ''}$${trade.profit_loss.toFixed(2)}
+                            </td>
+                            <td class="p-3">
+                              <div class="flex gap-2">
+                                <button class="edit-trade px-3 py-1 rounded text-white" style="background-color: ${accentColor}; font-size: ${baseSize * 0.85}px;">Edit</button>
+                                <button class="delete-trade px-3 py-1 rounded text-white" style="background-color: ${lossColor}; font-size: ${baseSize * 0.85}px;">Tirtir</button>
+                              </div>
+                            </td>
+                          </tr>
+                        `).join('')
+                      }
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+
+              <!-- Progress Section -->
+              <section class="p-6 rounded-lg" style="background-color: ${cardColor};">
+                <h2 class="font-bold mb-4" style="font-size: ${baseSize * 1.5}px; color: ${accentColor};">
+                  3️⃣ ${config.progress_title || defaultConfig.progress_title}
+                </h2>
+                <div class="overflow-x-auto">
+                  <table class="w-full">
+                    <thead>
+                      <tr class="border-b" style="border-color: ${bgColor};">
+                        <th class="text-left p-3 text-gray-400" style="font-size: ${baseSize * 0.85}px;">Bil</th>
+                        <th class="text-left p-3 text-gray-400" style="font-size: ${baseSize * 0.85}px;">Investment Total</th>
+                        <th class="text-left p-3 text-gray-400" style="font-size: ${baseSize * 0.85}px;">Trading Balance</th>
+                        <th class="text-left p-3 text-gray-400" style="font-size: ${baseSize * 0.85}px;">Combined Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      ${months.map(month => {
+                        const monthInv = investments.filter(inv => inv.month === month).reduce((sum, inv) => sum + inv.amount, 0);
+                        const cumulativeInv = investments.filter(inv => months.indexOf(inv.month) <= months.indexOf(month)).reduce((sum, inv) => sum + inv.amount, 0);
+                        const combined = cumulativeInv + tradingBalance;
+                        return `
+                          <tr class="border-b" style="border-color: ${bgColor};">
+                            <td class="p-3 text-white font-semibold" style="font-size: ${baseSize}px;">${month}</td>
+                            <td class="p-3 text-white" style="font-size: ${baseSize}px;">$${cumulativeInv}</td>
+                            <td class="p-3 text-white" style="font-size: ${baseSize}px;">$${tradingBalance.toFixed(2)}</td>
+                            <td class="p-3 font-bold" style="font-size: ${baseSize * 1.1}px; color: ${accentColor};">$${combined.toFixed(2)}</td>
+                          </tr>
+                        `;
+                      }).join('')}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+
+              <!-- System Rules -->
+              <section class="mt-8 p-6 rounded-lg" style="background-color: ${cardColor};">
+                <h3 class="font-bold mb-4" style="font-size: ${baseSize * 1.2}px; color: ${accentColor};">
+                  🎯 SYSTEM AAD RAACAYSO
+                </h3>
+                <ul class="space-y-2">
+                  <li class="flex items-start text-white" style="font-size: ${baseSize}px;">
+                    <span style="color: ${profitColor};">✔️</span>
+                    <span class="ml-2">DCA bil kasta (ha ka boodin)</span>
+                  </li>
+                  <li class="flex items-start text-white" style="font-size: ${baseSize}px;">
+                    <span style="color: ${profitColor};">✔️</span>
+                    <span class="ml-2">Ha ka badin 2% risk trade kasta</span>
+                  </li>
+                  <li class="flex items-start text-white" style="font-size: ${baseSize}px;">
+                    <span style="color: ${profitColor};">✔️</span>
+                    <span class="ml-2">Ha samayn revenge trading</span>
+                  </li>
+                  <li class="flex items-start text-white" style="font-size: ${baseSize}px;">
+                    <span style="color: ${profitColor};">✔️</span>
+                    <span class="ml-2">Qor trade kasta</span>
+                  </li>
+                  <li class="flex items-start text-white" style="font-size: ${baseSize}px;">
+                    <span style="color: ${profitColor};">✔️</span>
+                    <span class="ml-2">Bil kasta dib u eeg</span>
+                  </li>
+                </ul>
+              </section>
+            </main>
+          </div>
+        </div>
+      `;
+
+      attachEventListeners();
+    }
+
+    function attachEventListeners() {
+      const config = window.elementSdk?.config || defaultConfig;
+      
+      // Investment form
+      const addInvBtn = document.getElementById('addInvestmentBtn');
+      const invForm = document.getElementById('investmentForm');
+      const invFormElement = document.getElementById('invForm');
+      const cancelInvBtn = document.getElementById('cancelInvestmentBtn');
+      
+      addInvBtn?.addEventListener('click', () => {
+        invForm.classList.toggle('hidden');
+      });
+      
+      // Auto-fetch price when coin is selected for investment
+      const invCoinSelect = document.getElementById('invCoin');
+      invCoinSelect?.addEventListener('change', async () => {
+        const coin = invCoinSelect.value;
+        const priceInput = document.getElementById('invPrice');
+        
+        priceInput.value = 'Loading...';
+        priceInput.disabled = true;
+        
+        const price = await fetchLivePrice(coin);
+        
+        if (price) {
+          priceInput.value = price;
+        } else {
+          priceInput.value = '';
+          showMessage('Qiimaha la heli waayay. Fadlan geli gacanta', config.loss_color || defaultConfig.loss_color);
+        }
+        
+        priceInput.disabled = false;
+      });
+      
+      cancelInvBtn?.addEventListener('click', () => {
+        invForm.classList.add('hidden');
+      });
+      
+      invFormElement?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        if (investments.length >= 999) {
+          showMessage('Maximum limit of 999 investments reached. Please delete some first.', config.loss_color || defaultConfig.loss_color);
+          return;
+        }
+        
+        const month = document.getElementById('invMonth').value;
+        const coin = document.getElementById('invCoin').value;
+        const amount = parseFloat(document.getElementById('invAmount').value) || 0;
+        const price = parseFloat(document.getElementById('invPrice').value) || 0;
+        
+        const saveInvBtn = document.getElementById('saveInvestmentBtn');
+        saveInvBtn.disabled = true;
+        saveInvBtn.textContent = 'Kaydinaya...';
+        
+        const result = await window.dataSdk.create({
+          id: Date.now().toString(),
+          type: 'investment',
+          month,
+          coin,
+          amount,
+          price,
+          date: new Date().toISOString(),
+          quantity: 0,
+          entry: 0,
+          stop_loss: 0,
+          take_profit: 0,
+          result: '',
+          profit_loss: 0,
+          notes: '',
+          week: ''
+        });
+        
+        saveInvBtn.disabled = false;
+        saveInvBtn.textContent = 'Kaydi';
+        
+        if (result.isOk) {
+          invForm.classList.add('hidden');
+          invFormElement.reset();
+        } else {
+          showMessage('Failed to save investment', config.loss_color || defaultConfig.loss_color);
+        }
+      });
+      
+      // Trade form
+      const addTradeBtn = document.getElementById('addTradeBtn');
+      const tradeForm = document.getElementById('tradeForm');
+      const trFormElement = document.getElementById('trForm');
+      const cancelTradeBtn = document.getElementById('cancelTradeBtn');
+      
+      addTradeBtn?.addEventListener('click', () => {
+        tradeForm.classList.toggle('hidden');
+      });
+      
+      // Auto-fetch price and calculate TP/SL when pair is selected
+      const tradePairSelect = document.getElementById('tradePair');
+      tradePairSelect?.addEventListener('change', async () => {
+        const pair = tradePairSelect.value;
+        const coin = pair.split('/')[0];
+        const entryInput = document.getElementById('tradeEntry');
+        
+        entryInput.value = 'Loading...';
+        entryInput.disabled = true;
+        
+        const price = await fetchLivePrice(coin);
+        
+        if (price) {
+          entryInput.value = price;
+          // Auto-calculate SL and TP
+          calculateSLTP(price);
+        } else {
+          entryInput.value = '';
+          showMessage('Qiimaha la heli waayay. Fadlan geli gacanta', config.loss_color || defaultConfig.loss_color);
+        }
+        
+        entryInput.disabled = false;
+      });
+      
+      // Auto-calculate SL and TP when entry changes
+      const entryInput = document.getElementById('tradeEntry');
+      entryInput?.addEventListener('input', () => {
+        const entry = parseFloat(entryInput.value);
+        if (entry && entry > 0) {
+          calculateSLTP(entry);
+        }
+      });
+      
+      function calculateSLTP(entry) {
+        const slInput = document.getElementById('tradeSL');
+        const tpInput = document.getElementById('tradeTP');
+        
+        // 2% risk for SL, 4% profit for TP (1:2 risk-reward)
+        const sl = entry * 0.98; // 2% below entry
+        const tp = entry * 1.04; // 4% above entry
+        
+        slInput.value = sl.toFixed(4);
+        tpInput.value = tp.toFixed(4);
+      }
+      
+      // Auto-calculate P/L based on result
+      const tradeAmountInput = document.getElementById('tradeAmount');
+      const tradeRiskPercentSelect = document.getElementById('tradeRiskPercent');
+      const tradeResultSelect = document.getElementById('tradeResult');
+      const tradeRiskInput = document.getElementById('tradeRisk');
+      const tradePLInput = document.getElementById('tradePL');
+      
+      function calculateRiskAndPL() {
+        const amount = parseFloat(tradeAmountInput?.value) || 0;
+        const riskPercent = parseFloat(tradeRiskPercentSelect?.value) || 2;
+        const risk = amount * (riskPercent / 100);
+        const result = tradeResultSelect?.value;
+        
+        // Update risk field
+        if (tradeRiskInput) {
+          tradeRiskInput.value = risk.toFixed(2);
+        }
+        
+        // Update P/L field
+        if (result === 'Win') {
+          tradePLInput.value = (risk * 2).toFixed(2);
+        } else if (result === 'Loss') {
+          tradePLInput.value = (-risk).toFixed(2);
+        } else {
+          tradePLInput.value = '0.00';
+        }
+      }
+      
+      tradeAmountInput?.addEventListener('input', calculateRiskAndPL);
+      tradeRiskPercentSelect?.addEventListener('change', calculateRiskAndPL);
+      tradeResultSelect?.addEventListener('change', calculateRiskAndPL);
+      
+      cancelTradeBtn?.addEventListener('click', () => {
+        tradeForm.classList.add('hidden');
+      });
+      
+      trFormElement?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        if (trades.length >= 999) {
+          showMessage('Maximum limit of 999 trades reached. Please delete some first.', config.loss_color || defaultConfig.loss_color);
+          return;
+        }
+        
+        const date = document.getElementById('tradeDate').value;
+        const coin = document.getElementById('tradePair').value;
+        const entry = parseFloat(document.getElementById('tradeEntry').value) || 0;
+        const stop_loss = parseFloat(document.getElementById('tradeSL').value) || 0;
+        const take_profit = parseFloat(document.getElementById('tradeTP').value) || 0;
+        const result = document.getElementById('tradeResult').value;
+        const risk = parseFloat(document.getElementById('tradeRisk').value) || 2;
+        const profit_loss = parseFloat(document.getElementById('tradePL').value) || 0;
+        const notes = document.getElementById('tradeNotes').value;
+        
+        const saveTradeBtn = document.getElementById('saveTradeBtn');
+        saveTradeBtn.disabled = true;
+        saveTradeBtn.textContent = 'Kaydinaya...';
+        
+        const createResult = await window.dataSdk.create({
+          id: Date.now().toString(),
+          type: 'trade',
+          date,
+          coin,
+          entry,
+          stop_loss,
+          take_profit,
+          result,
+          profit_loss,
+          notes,
+          month: '',
+          week: '',
+          amount: 0,
+          price: 0,
+          quantity: 0
+        });
+        
+        saveTradeBtn.disabled = false;
+        saveTradeBtn.textContent = 'Kaydi';
+        
+        if (createResult.isOk) {
+          tradeForm.classList.add('hidden');
+          trFormElement.reset();
+          calculateRiskAndPL();
+        } else {
+          showMessage('Failed to save trade', config.loss_color || defaultConfig.loss_color);
+        }
+      });
+      
+      // Delete investments
+      document.querySelectorAll('.delete-inv').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          const row = e.target.closest('tr');
+          const id = row.dataset.id;
+          const investment = investments.find(inv => inv.id === id);
+          
+          if (investment) {
+            btn.disabled = true;
+            btn.textContent = 'Tirtirayaa...';
+            const result = await window.dataSdk.delete(investment);
+            btn.disabled = false;
+            btn.textContent = 'Tirtir';
+            
+            if (!result.isOk) {
+              showMessage('Failed to delete investment', config.loss_color || defaultConfig.loss_color);
+            }
+          }
+        });
+      });
+      
+      // Edit trades
+      document.querySelectorAll('.edit-trade').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const row = e.target.closest('tr');
+          const id = row.dataset.id;
+          const trade = trades.find(t => t.id === id);
+          
+          if (trade) {
+            const cells = row.querySelectorAll('td');
+            
+            // Result cell (index 5)
+            const resultCell = cells[5];
+            resultCell.innerHTML = `
+              <select class="edit-result p-1 rounded" style="background-color: ${config.card_color || defaultConfig.card_color}; color: white; font-size: ${config.font_size || defaultConfig.font_size}px;">
+                <option value="" ${trade.result === '' ? 'selected' : ''}>Open</option>
+                <option value="Win" ${trade.result === 'Win' ? 'selected' : ''}>Win</option>
+                <option value="Loss" ${trade.result === 'Loss' ? 'selected' : ''}>Loss</option>
+              </select>
+            `;
+            
+            // P/L cell (index 6)
+            const plCell = cells[6];
+            plCell.innerHTML = `
+              <input type="number" step="0.01" readonly class="edit-pl p-1 rounded" style="background-color: ${config.card_color || defaultConfig.card_color}; color: white; font-size: ${config.font_size || defaultConfig.font_size}px; width: 100px; opacity: 0.7;" value="${trade.profit_loss}" />
+            `;
+            
+            // Auto-calculate P/L when result changes in edit mode
+            const editResultSelect = resultCell.querySelector('.edit-result');
+            const editPLInput = plCell.querySelector('.edit-pl');
+            const risk = 2;
+            
+            editResultSelect.addEventListener('change', () => {
+              const result = editResultSelect.value;
+              if (result === 'Win') {
+                editPLInput.value = (risk * 2).toFixed(2);
+              } else if (result === 'Loss') {
+                editPLInput.value = (-risk).toFixed(2);
+              } else {
+                editPLInput.value = '0.00';
+              }
+            });
+            
+            // Actions cell (index 7)
+            const actionsCell = cells[7];
+            actionsCell.innerHTML = `
+              <div class="flex gap-2">
+                <button class="save-trade px-3 py-1 rounded text-white" style="background-color: ${config.profit_color || defaultConfig.profit_color}; font-size: ${(config.font_size || defaultConfig.font_size) * 0.85}px;">Kaydi</button>
+                <button class="cancel-edit px-3 py-1 rounded text-white" style="background-color: ${config.loss_color || defaultConfig.loss_color}; font-size: ${(config.font_size || defaultConfig.font_size) * 0.85}px;">Ka Noqo</button>
+              </div>
+            `;
+            
+            // Save button handler
+            actionsCell.querySelector('.save-trade').addEventListener('click', async () => {
+              const newResult = resultCell.querySelector('.edit-result').value;
+              const newPL = parseFloat(plCell.querySelector('.edit-pl').value) || 0;
+              
+              const saveBtn = actionsCell.querySelector('.save-trade');
+              saveBtn.disabled = true;
+              saveBtn.textContent = 'Kaydinaya...';
+              
+              const updatedTrade = {
+                ...trade,
+                result: newResult,
+                profit_loss: newPL
+              };
+              
+              const result = await window.dataSdk.update(updatedTrade);
+              
+              saveBtn.disabled = false;
+              saveBtn.textContent = 'Kaydi';
+              
+              if (!result.isOk) {
+                showMessage('Failed to update trade', config.loss_color || defaultConfig.loss_color);
+              }
+            });
+            
+            // Cancel button handler
+            actionsCell.querySelector('.cancel-edit').addEventListener('click', () => {
+              renderApp();
+            });
+          }
+        });
+      });
+      
+      // Delete trades
+      document.querySelectorAll('.delete-trade').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          const row = e.target.closest('tr');
+          const id = row.dataset.id;
+          const trade = trades.find(t => t.id === id);
+          
+          if (trade) {
+            btn.disabled = true;
+            btn.textContent = 'Tirtirayaa...';
+            const result = await window.dataSdk.delete(trade);
+            btn.disabled = false;
+            btn.textContent = 'Tirtir';
+            
+            if (!result.isOk) {
+              showMessage('Failed to delete trade', config.loss_color || defaultConfig.loss_color);
+            }
+          }
+        });
+      });
+    }
+
+    function showMessage(text, color) {
+      const config = window.elementSdk?.config || defaultConfig;
+      const baseSize = config.font_size || defaultConfig.font_size;
+      const message = document.createElement('div');
+      message.textContent = text;
+      message.style.cssText = `position: fixed; top: 20px; right: 20px; padding: 16px 24px; border-radius: 8px; background-color: ${color}; color: white; font-size: ${baseSize}px; z-index: 1000; box-shadow: 0 4px 6px rgba(0,0,0,0.3);`;
+      document.body.appendChild(message);
+      setTimeout(() => message.remove(), 3000);
+    }
+
+    init();
+  </script>
+ <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9b34413d8598d0e2',t:'MTc2NjYyMjg4OC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
